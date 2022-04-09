@@ -38,6 +38,8 @@ ENVIRONMENT=${ENVIRONMENT:-}   # ("variable name: content" "...")
 CMD=${CMD:-}                   # path to application executable inside container
 IP=${IP:-}
 ATTACH_NVIDIA=${ATTACH_NVIDIA:-0}
+CONTAINER_CAPS=${CONTAINER_CAPS:-}
+CAPS_PRIVILEGED=${CAPS_PRIVILEGED:0}
 
 NS_USER=${NS_USER:-containers}
 declare -A LIMITS=${LIMITS:([CPU]="0.0" [MEMORY]=0)}
@@ -59,12 +61,12 @@ __command(){
   local silent="$2"  # 0 or 1
   shift;shift
 
-  [[ "${__DEBUG}" -eq 1 ]] && echo "Command: $@"
+  [[ "${__DEBUG}" -eq 1 ]] && echo "Command: $*"
 
   echo -n "${title}..."
 
   if [[ ${silent} -eq 1 ]]; then
-    $@ 1>/dev/null 2>&1
+    "$@" 1>/dev/null 2>&1
     local __ec=$?
     if [[ $__ec -eq 0 ]]; then
       echo "OK"
@@ -73,7 +75,7 @@ __command(){
     fi
     return ${__ec}
   else
-    $@
+    "$@"
     return $?
   fi
 }
@@ -128,6 +130,7 @@ do_start() {
  local limits_mem=""
  local limits_cpu=""
  local nvidia_args=""
+ local caps=""
 
  if [[ ${clean} -eq 1 ]] && [[ ${attach} -eq 1 ]]; then
   echo "[E] -c and -a options cannot be used together!"
@@ -172,6 +175,17 @@ do_start() {
    echo " - ${_env[0]} = ${_env[1]}"
  done
 
+ echo "Container CAPS:"
+ if [[ ${CAPS_PRIVILEGED} -eq 0 ]]; then
+  for v in "${CONTAINER_CAPS[@]}"; do
+    local caps="${caps}--cap-add ${v} "
+    echo " - ${v}"
+  done
+ else 
+  local caps="--privileged"
+  echo " - privileged mode"
+ fi
+
  # network 
  [[ "${IP}" == "host" ]] && { local _net_argument="--net=host"; } || { local _net_argument="--ip=${IP}"; }
 
@@ -212,11 +226,13 @@ do_start() {
    [[ ${interactive} -eq 1 ]] && { local action="run"; local options="-it --entrypoint=bash"; echo "[i] Interactive run..."; } || { local action="run"; local options="-d"; }
    [[ ${attach} -eq 1 ]] && { local action="create"; local options=""; }
 
+   # shellcheck disable=SC2086
   __command "[!] Creating and starting container..." 0 \
   podman ${action} ${limits_cpu} ${limits_mem}\
   "${__ns_arguments}"\
   --name "${APPLICATION}"\
   --hostname "${APPLICATION}"\
+  ${caps}\
   ${options}\
   ${_net_argument}\
   ${lxcfs_mounts}\
@@ -224,6 +240,7 @@ do_start() {
   ${volumes}\
   ${nvidia_args}\
   "${APPLICATION}":"${ver}"
+
 
   [[ ${attach} -eq 1 ]] && podman start -a "${APPLICATION}"
  fi
@@ -236,7 +253,7 @@ do_stop() {
 }
 
 do_logs() {
- podman logs ${APPLICATION}
+ podman logs "${APPLICATION}"
 }
 
 do_build() {
@@ -270,7 +287,6 @@ do_init(){
   
    cat > "${DIR}/container/Dockerfile" <<EOF
 FROM centos:7
-LABEL maintainer "hapy lestat"
 
 ARG APP_VER
 ENV APP_VER=\${APP_VER:-}
@@ -383,7 +399,13 @@ upgrade_lib(){
    fi
    curl https://raw.githubusercontent.com/hapylestat/native_container_app/master/src/container.lib.sh -o "${DIR}/container.lib.sh" 2>/dev/null
    sed -i "s/LIB_VERSION=\"0.0.0\"/LIB_VERSION=\"${_remote_ver}\"/" "${DIR}/container.lib.sh"
-   echo "Upgrade done"
+
+  if [[ ! -f "${DIR}/.config" ]]; then
+    echo "Downloading default configuration file"
+    curl https://raw.githubusercontent.com/hapylestat/native_container_app/master/src/.config -o "${DIR}/.config" 2>/dev/null
+  fi
+
+   echo "Upgrade done, please referer to https://raw.githubusercontent.com/hapylestat/native_container_app/master/src/.config for new available conf options"
   else 
     echo "Lib is up to date"
   fi
