@@ -160,6 +160,10 @@ do_start() {
  echo "Container volumes:"
  for v in "${VOLUMES[@]}"; do
    local share=(${v//:/ })
+   if [[ "${share[0]}" == "" ]]; then
+    echo " - no volumes"
+    continue
+   fi
    #  resolving here relative or absolute source paths
    local first_char=${share[0]:0:1}
    [[ "${first_char}" == "/" ]] && { local _src_dir=${share[0]}; } || { local _src_dir="${DIR}/storage/${share[0]}"; }
@@ -171,6 +175,10 @@ do_start() {
  echo "Environment variables:"
  for v in "${ENVIRONMENT[@]}"; do
    local _env=(${v//=/ })
+   if [[ "${_env[0]}" == "" ]]; then
+    echo " - no variables"
+    continue
+   fi
    local envi="${envi}-e ${_env[0]}=${_env[1]} "
    echo " - ${_env[0]} = ${_env[1]}"
  done
@@ -178,6 +186,10 @@ do_start() {
  echo "Container CAPS:"
  if [[ ${CAPS_PRIVILEGED} -eq 0 ]]; then
   for v in "${CONTAINER_CAPS[@]}"; do
+   if [[ "${v}" == "" ]]; then
+    echo " - no CAPS"
+    continue
+   fi
     local caps="${caps}--cap-add ${v} "
     echo " - ${v}"
   done
