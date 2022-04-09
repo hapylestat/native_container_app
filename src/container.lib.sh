@@ -9,24 +9,26 @@
 # Author: simca
 # Mail  : me at nxa dot io
 
+# shellcheck disable=SC2155,SC1091,SC2015
 
+LIB_VERSION="0.0.0"
 PATH=${PATH}:/usr/bin
 __DEBUG=0
 
 __dir(){
  local SOURCE="${BASH_SOURCE[0]}"
  while [[ -h "$SOURCE" ]]; do
-   local DIR=`cd -P "$( dirname "$SOURCE" )" >/dev/null 2>&1 && pwd`
+   local DIR=$(cd -P "$( dirname "$SOURCE" )" >/dev/null 2>&1 && pwd)
    local SOURCE="$(readlink "$SOURCE")"
    [[ $SOURCE != /* ]] && SOURCE="$DIR/$SOURCE"
  done
- echo -n `cd -P "$( dirname "$SOURCE" )" >/dev/null 2>&1 && pwd`
+ echo -n $(cd -P "$( dirname "$SOURCE" )" >/dev/null 2>&1 && pwd)
 }
 
 DIR=$(__dir)
 
 
-. ${DIR}/.config
+. "${DIR}/.config"
 
 
 APPLICATION=${APPLICATION:-}
@@ -97,22 +99,22 @@ verify_requested_resources(){
 
 _add_nvidia_mounts(){
   local _args="--cap-add=ALL" # required 
-  local _driver_version=`nvidia-container-cli info|grep "NVRM"|awk -F ':' '{print $2}'|tr -d ' '`
+  local _driver_version=$(nvidia-container-cli info|grep "NVRM"|awk -F ':' '{print $2}'|tr -d ' ')
 
-  for _dev in `find /dev -maxdepth 1 -name 'nvidia*'`; do 
+  for _dev in $(find /dev -maxdepth 1 -name 'nvidia*'); do 
     local _args="${_args} --device ${_dev}"
   done 
   
-  for item in `nvidia-container-cli list|grep -v "dev"`; do 
+  for item in $(nvidia-container-cli list|grep -v "dev"); do 
     if [[ ${item} == *".so"* ]]; then
-      local _pure_path=`echo ${item}|sed "s/.${_driver_version}//"`
+      local _pure_path=$(echo ${item}|sed "s/.${_driver_version}//")
       local _args="${_args} -v ${item}:${item}:ro -v ${item}:${_pure_path}:ro -v ${item}:${_pure_path}.1:ro"
     else 
       local _args="${_args} -v ${item}:${item}:ro"
     fi
   done
 
-  echo -n ${_args}
+  echo -n "${_args}"
 }
 
 do_start() {
@@ -150,10 +152,10 @@ do_start() {
  fi
 
  echo "LXS-FS extension is installed: you"
- [[ "${IS_LXCFS_ENABLED}" -eq 1 ]] && { local lxcfs_mounts=${LXC_FS_OPTS[@]}; echo "- YES"; } || { echo "- NO"; }
+ [[ "${IS_LXCFS_ENABLED}" -eq 1 ]] && { local lxcfs_mounts=${LXC_FS_OPTS[*]}; echo "- YES"; } || { echo "- NO"; }
 
  echo "Container volumes:"
- for v in ${VOLUMES[@]}; do
+ for v in "${VOLUMES[@]}"; do
    local share=(${v//:/ })
    #  resolving here relative or absolute source paths
    local first_char=${share[0]:0:1}
@@ -164,7 +166,7 @@ do_start() {
  done
  
  echo "Environment variables:"
- for v in ${ENVIRONMENT[@]}; do
+ for v in "${ENVIRONMENT[@]}"; do
    local _env=(${v//=/ })
    local envi="${envi}-e ${_env[0]}=${_env[1]} "
    echo " - ${_env[0]} = ${_env[1]}"
@@ -189,15 +191,15 @@ do_start() {
  echo "Container IP:"
  echo " - ${IP}"
 
- podman container exists ${APPLICATION} 1>/dev/null 2>&1
+ podman container exists "${APPLICATION}" 1>/dev/null 2>&1
  local is_exists=$?
  local action="start"
 
  [[ ATTACH_NVIDIA -eq 1 ]] && { local nvidia_args=$(_add_nvidia_mounts); echo "[i] Attaching NVIDIA stuff to container..."; } || echo -n
 
  if [[ ${is_exists} -eq 0 ]]; then
-   __command "Stopping container" 1 podman stop ${APPLICATION}
-  [[ ${clean} -eq 1 ]] && { __command "[!] Removing already existing container..." 1 podman rm ${APPLICATION}; local action="run"; }
+   __command "Stopping container" 1 podman stop "${APPLICATION}"
+  [[ ${clean} -eq 1 ]] && { __command "[!] Removing already existing container..." 1 podman rm "${APPLICATION}"; local action="run"; }
  else
    local action="run"
  fi
@@ -205,32 +207,32 @@ do_start() {
  if [[ "${action}" == "start" ]]; then  
    [[ ${attach} -eq 1 ]] && local option="-a"  || local option=""
    [[ ${attach} == 0 ]] && local _silent=1 || local _silent=0 # flip attach value and store to _silent
-   __command "[!] Starting container..." ${_silent} podman start ${option} ${APPLICATION}
+   __command "[!] Starting container..." ${_silent} podman start "${option}" "${APPLICATION}"
  else 
    [[ ${interactive} -eq 1 ]] && { local action="run"; local options="-it --entrypoint=bash"; echo "[i] Interactive run..."; } || { local action="run"; local options="-d"; }
    [[ ${attach} -eq 1 ]] && { local action="create"; local options=""; }
 
   __command "[!] Creating and starting container..." 0 \
   podman ${action} ${limits_cpu} ${limits_mem}\
-  ${__ns_arguments}\
-  --name ${APPLICATION}\
-  --hostname ${APPLICATION}\
+  "${__ns_arguments}"\
+  --name "${APPLICATION}"\
+  --hostname "${APPLICATION}"\
   ${options}\
   ${_net_argument}\
   ${lxcfs_mounts}\
   ${envi}\
   ${volumes}\
   ${nvidia_args}\
-  ${APPLICATION}:${ver}
+  "${APPLICATION}":"${ver}"
 
-  [[ ${attach} -eq 1 ]] && podman start -a ${APPLICATION}
+  [[ ${attach} -eq 1 ]] && podman start -a "${APPLICATION}"
  fi
 }
 
 do_stop() {
   local clean=$1
-  __command "[I] Stopping container ..." 1 podman stop -t 10 ${APPLICATION}
-  [[ ${clean} -eq 1 ]] && __command "[!] Removing container..." 1 podman rm ${APPLICATION}
+  __command "[I] Stopping container ..." 1 podman stop -t 10 "${APPLICATION}"
+  [[ ${clean} -eq 1 ]] && __command "[!] Removing container..." 1 podman rm "${APPLICATION}"
 }
 
 do_logs() {
@@ -240,7 +242,7 @@ do_logs() {
 do_build() {
   local ver=$1
   # podman build --build-arg VSCODE_VER=${ver} -t ${APPLICATION}:${ver} container
-  podman build --build-arg APP_VER=${VER} -t ${APPLICATION}:${ver} container
+  podman build --build-arg APP_VER="${VER}" -t "${APPLICATION}":"${ver}" container
 }
 
 do_init(){
@@ -248,7 +250,7 @@ do_init(){
  local docker_mkdir=""
  local docker_volumes=""
  local volumes=""
- for v in ${VOLUMES[@]}; do
+ for v in "${VOLUMES[@]}"; do
    local share=(${v//:/ })
    local docker_mkdir="${docker_mkdir}RUN mkdir -p ${share[1]}\n"
    local docker_volumes="${docker_volumes}VOLUME ${share[1]}\n"
@@ -256,7 +258,7 @@ do_init(){
  done
 
  echo "Initializing folders structures..."
- for d in ${dirs[@]}; do
+ for d in "${dirs[@]}"; do
     [[ ! -d "${DIR}/${d}" ]] && echo " - Creating ../${d}" || echo " - Skipping ../${d}"
  done
 
@@ -292,7 +294,7 @@ EOF
  local _uid=$(grep "${NS_USER}" /etc/subuid|cut -d ':' -f 2)
  local _gid=$(grep "${NS_USER}" /etc/subgid|cut -d ':' -f 2)
 
- for v in ${volumes[@]}; do
+ for v in "${volumes[@]}"; do
   echo -n " - mkdir storage/${v} ..."
   if [[ -d "${DIR}/storage/${v}" ]]; then
     echo "exist"
@@ -303,17 +305,17 @@ EOF
   local _uid=$(grep "${NS_USER}" /etc/subuid | cut -d ':' -f 2)
   local _gid=$(grep "${NS_USER}" /etc/subuid | cut -d ':' -f 2)
   echo " - permissions storage/${v} => ${_uid}:${_gid}, mode 700..."
-  chown ${_uid}:${_gid} "${DIR}/storage/${v}"
+  chown "${_uid}":"${_gid}" "${DIR}/storage/${v}"
   chmod 700 "${DIR}/storage/${v}"
  done
  
  echo -n "Creating systemd service file..."
- local service_name=`basename "$0"`
+ local service_name=$(basename "$0")
  local service_name=(${service_name//./ })
  local service_name=${service_name[0]}
  
  if [[ ! -f "${DIR}/${service_name}.service" ]]; then
- cat > ${DIR}/${service_name}.service <<EOF
+ cat > "${DIR}/${service_name}.service" <<EOF
 [Unit]
 Description=Podman ${service_name}.service
 Documentation=man:podman-generate-systemd(1)
@@ -339,6 +341,54 @@ else
 fi
 }
 
+
+# https://stackoverflow.com/questions/4023830/how-to-compare-two-strings-in-dot-separated-version-format-in-bash
+# Results: 
+#          0 => =
+#          1 => >
+#          2 => <
+__vercomp () {
+    if [[ "$1" == "$2" ]]; then
+        return 0
+    fi
+    local IFS=.
+    local i ver1=($1) ver2=($2)
+    
+    for ((i=${#ver1[@]}; i<${#ver2[@]}; i++));  do
+        ver1[i]=0
+    done
+    for ((i=0; i<${#ver1[@]}; i++)); do
+        if [[ -z ${ver2[i]} ]]; then
+            ver2[i]=0
+        fi
+        if ((10#${ver1[i]} > 10#${ver2[i]})); then
+            return 1
+        fi
+        if ((10#${ver1[i]} < 10#${ver2[i]})); then
+            return 2
+        fi
+    done
+    return 0
+}
+
+upgrade_lib(){
+  local _remote_ver=$(curl https://raw.githubusercontent.com/hapylestat/native_container_app/master/version 2>/dev/null)
+  
+  if ! __vercomp "${LIB_VERSION}" "${_remote_ver}"; then
+   echo "Current version ${LIB_VERSION} are installed, while ${_remote_ver} are available"
+   read -rep "Confirm upgrade (y/N): " answer
+   if [[ "${answer}" != "y" ]]; then
+    echo "Upgrade cancelled by user"
+    return
+   fi
+   curl https://raw.githubusercontent.com/hapylestat/native_container_app/master/src/container.lib.sh -o "${DIR}/container.lib.sh" 2>/dev/null
+   sed -i "s/LIB_VERSION=\"0.0.0\"/LIB_VERSION=\"${_remote_ver}\"/" "${DIR}/container.lib.sh"
+   echo "Upgrade done"
+  else 
+    echo "Lib is up to date"
+  fi
+}
+
 show_help(){
  echo "Help is here...soon"
 }
@@ -350,6 +400,7 @@ declare -A COMMANDS=(
  [START]=0
  [STOP]=0
  [LOGS]=0
+ [DOWNLOAD]=0
 )
 
 declare -A FLAGS=(
@@ -359,7 +410,7 @@ declare -A FLAGS=(
 )
 
 
-for i in ${@}; do
+for i in "${@}"; do
   if [[ ${COMMANDS[${i^^}]+_} ]]; then
    COMMANDS[${i^^}]=1
    shift
@@ -382,8 +433,9 @@ for i in ${@}; do
  esac fi
 done
 
-
-if [[ ${COMMANDS[INIT]} -eq 1 ]]; then
+if [[ ${COMMANDS[DOWNLOAD]} -eq 1 ]]; then
+  upgrade_lib
+elif [[ ${COMMANDS[INIT]} -eq 1 ]]; then
   do_init
 elif [[ ${COMMANDS[START]} -eq 1 ]]; then
   do_start "${VER}" "${FLAGS[CLEAN]}" "${FLAGS[ATTACH]}" "${FLAGS[INTERACTIVE]}"
