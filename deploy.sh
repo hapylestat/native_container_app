@@ -41,5 +41,4 @@ install_script(){
     __command "Init..." 0 "${answer}.sh init" 
 }
 
-read -rep "Application name: " answer
-install_script "${answer}"
+install_script "$1"
