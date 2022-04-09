@@ -229,9 +229,9 @@ do_start() {
    # shellcheck disable=SC2086
   __command "[!] Creating and starting container..." 0 \
   podman ${action} ${limits_cpu} ${limits_mem}\
-  "${__ns_arguments}"\
-  --name "${APPLICATION}"\
-  --hostname "${APPLICATION}"\
+  ${__ns_arguments}\
+  --name ${APPLICATION}\
+  --hostname ${APPLICATION}\
   ${caps}\
   ${options}\
   ${_net_argument}\
@@ -239,7 +239,7 @@ do_start() {
   ${envi}\
   ${volumes}\
   ${nvidia_args}\
-  "${APPLICATION}":"${ver}"
+  localhost/${APPLICATION}:${ver}
 
 
   [[ ${attach} -eq 1 ]] && podman start -a "${APPLICATION}"
@@ -258,8 +258,8 @@ do_logs() {
 
 do_build() {
   local ver=$1
-  # podman build --build-arg VSCODE_VER=${ver} -t ${APPLICATION}:${ver} container
-  podman build --build-arg APP_VER="${VER}" -t "${APPLICATION}":"${ver}" container
+  
+  podman build --build-arg APP_VER="${VER}" -t "localhost/${APPLICATION}":"${ver}" container
 }
 
 do_init(){
