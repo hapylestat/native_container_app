@@ -38,7 +38,6 @@ install_script(){
     sed -i "s/LIB_VERSION=\"0.0.0\"/LIB_VERSION=\"${_remote_ver}\"/" "container.lib.sh"
 
     __command "Fixing permissions..." 1 chmod +x "${answer}.sh" 
-    __command "Init..." 0 bash "${answer}.sh" init
 }
 
 install_script "$1"
