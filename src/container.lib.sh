@@ -40,6 +40,7 @@ IP=${IP:-}
 ATTACH_NVIDIA=${ATTACH_NVIDIA:-0}
 CONTAINER_CAPS=${CONTAINER_CAPS:-}
 CAPS_PRIVILEGED=${CAPS_PRIVILEGED:0}
+BUILD_ARGS=${BUILD_ARGS:-}
 
 NS_USER=${NS_USER:-containers}
 declare -A LIMITS=${LIMITS:([CPU]="0.0" [MEMORY]=0)}
@@ -270,8 +271,21 @@ do_logs() {
 
 do_build() {
   local ver=$1
+  local _build_args=""
+  echo "Build args:"
+  for v in "${BUILD_ARGS[@]}"; do
+    # shellcheck disable=SC2206
+    local _args=(${v//=/ })
+    if [[ "${_args[0]}" == "" ]]; then
+      echo " - no build args"
+      continue
+    fi
+    local _build_args="${_build_args}--build-arg ${_args[0]}=${_args[1]} "
+    echo " - ${_args[0]} = ${_args[1]}"
+  done
   
-  podman build --build-arg APP_VER="${VER}" -t "localhost/${APPLICATION}":"${ver}" container
+  # shellcheck disable=SC2086
+  podman build --build-arg APP_VER="${VER}" ${_build_args} -t "localhost/${APPLICATION}:${ver}" container
 }
 
 do_init(){
@@ -280,6 +294,7 @@ do_init(){
  local docker_volumes=""
  local volumes=""
  for v in "${VOLUMES[@]}"; do
+   # shellcheck disable=SC2206
    local share=(${v//:/ })
    local docker_mkdir="${docker_mkdir}RUN mkdir -p ${share[1]}\n"
    local docker_volumes="${docker_volumes}VOLUME ${share[1]}\n"
