@@ -295,10 +295,12 @@ do_init(){
  local volumes=""
  for v in "${VOLUMES[@]}"; do
    # shellcheck disable=SC2206
+   [[ "${v}" == "" ]] && continue
    local share=(${v//:/ })
+
    local docker_mkdir="${docker_mkdir}RUN mkdir -p ${share[1]}\n"
    local docker_volumes="${docker_volumes}VOLUME ${share[1]}\n"
-   local volumes="${volumes} ${share[0]}"
+   local volumes=(${volumes} "${share[0]}")
  done
 
  echo "Initializing folders structures..."
@@ -337,7 +339,9 @@ EOF
  local _uid=$(grep "${NS_USER}" /etc/subuid|cut -d ':' -f 2)
  local _gid=$(grep "${NS_USER}" /etc/subgid|cut -d ':' -f 2)
 
- for v in "${volumes[@]}"; do
+ # shellcheck disable=SC2048
+ for v in ${volumes[*]}; do
+  [[ "${v}" == "" ]] && continue
   echo -n " - mkdir storage/${v} ..."
   if [[ -d "${DIR}/storage/${v}" ]]; then
     echo "exist"
@@ -345,17 +349,20 @@ EOF
     mkdir -p "${DIR}/storage/${v}" 1>/dev/null 2>&1
    [[ $? -eq 0 ]] && echo "created" || echo "failed"
   fi
-  local _uid=$(grep "${NS_USER}" /etc/subuid | cut -d ':' -f 2)
-  local _gid=$(grep "${NS_USER}" /etc/subuid | cut -d ':' -f 2)
   echo " - permissions storage/${v} => ${_uid}:${_gid}, mode 700..."
   chown "${_uid}":"${_gid}" "${DIR}/storage/${v}"
   chmod 700 "${DIR}/storage/${v}"
  done
  
+
  echo -n "Creating systemd service file..."
  local service_name=$(basename "$0")
+ # shellcheck disable=SC2206
  local service_name=(${service_name//./ })
+ # shellcheck disable=SC2178
  local service_name=${service_name[0]}
+ 
+ # shellcheck disable=SC2128
  
  if [[ ! -f "${DIR}/${service_name}.service" ]]; then
  cat > "${DIR}/${service_name}.service" <<EOF
