@@ -300,7 +300,7 @@ do_init(){
 
    local docker_mkdir="${docker_mkdir}RUN mkdir -p ${share[1]}\n"
    local docker_volumes="${docker_volumes}VOLUME ${share[1]}\n"
-   local volumes=(${volumes} "${share[0]}")
+   local volumes+=("${share[0]}")
  done
 
  echo "Initializing folders structures..."
