@@ -45,6 +45,7 @@ BUILD_ARGS=${BUILD_ARGS:-}
 
 NS_USER=${NS_USER:-containers}
 declare -A LIMITS=${LIMITS:([CPU]="0.0" [MEMORY]=0)}
+declare -A CUSTOM_COMMANDS=${CUSTOM_COMMANDS:()}
 
 
 IS_LXCFS_ENABLED=$([[ -d "/var/lib/lxcfs" ]] && echo "1" || echo "0")
@@ -501,7 +502,6 @@ declare -A COMMANDS=(
  [BUILD]=0
  [START]=0
  [STOP]=0
- [RELOAD]=0
  [LOGS]=0
  [UPDATE]=0
 )
@@ -511,6 +511,10 @@ declare -A FLAGS=(
  [ATTACH]=0
  [INTERACTIVE]=0
 )
+
+for key in ${!CUSTOM_COMMANDS[*]}; do
+ COMMANDS[${key}]=0
+done
 
 
 for i in "${@}"; do
@@ -549,6 +553,13 @@ elif [[ ${COMMANDS[BUILD]} -eq 1 ]]; then
 elif [[ ${COMMANDS[LOGS]} -eq 1 ]]; then
   do_logs
 else
+  for key in ${!CUSTOM_COMMANDS[*]}; do
+   if [[ ${COMMANDS[${key}]} -eq 1 ]]; then
+     ${CUSTOM_COMMANDS[${key}]} FLAGS
+     exit $?
+   fi
+  done
+
   show_help
 fi
 
