@@ -227,7 +227,7 @@ do_start() {
    [[ "${share[0]}" == "" ]] && { echo " - no volumes"; continue; }
    [[ "${share[0]:0:1}" == "/" ]] && { local _src_dir=${share[0]}; } || { local _src_dir="${DIR}/storage/${share[0]}"; }
 
-   [[ ! -d "${_src_dir}" ]] && "mkdir -p ${_src_dir}" 1>/dev/null 2>&1
+   [[ ! -d "${_src_dir}" ]] && mkdir -p "${_src_dir}" 1>/dev/null 2>&1
 
    local volumes="${volumes}-v ${_src_dir}:${share[1]} "; echo " - ${_src_dir} => ${share[1]}"
  done
