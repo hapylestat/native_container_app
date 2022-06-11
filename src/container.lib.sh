@@ -78,7 +78,7 @@ __command(){
   if [[ ${silent} -eq 1 ]]; then
     "$@" 1>/dev/null 2>&1
     local n=$?
-    [[ $n -eq 0 ]] && echo -ne "${_c_ok}ok\033[m" || echo -ne "${_c_fail}fail[#${n}]\033[m"
+    [[ $n -eq 0 ]] && echo -e "${_c_ok}ok\033[m" || echo -e "${_c_fail}fail[#${n}]\033[m"
     return ${n}
   else
     "$@"
