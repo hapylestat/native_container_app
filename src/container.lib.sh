@@ -45,7 +45,8 @@ BUILD_ARGS=${BUILD_ARGS:-}
 
 NS_USER=${NS_USER:-containers}
 declare -A LIMITS=${LIMITS:([CPU]="0.0" [MEMORY]=0)}
-declare -A CUSTOM_COMMANDS=${CUSTOM_COMMANDS:()}
+declare -A CUSTOM_COMMANDS=${CUSTOM_COMMANDS:()}; unset "CUSTOM_COMMANDS[0]"
+declare -A CUSTOM_FLAGS=${CUSTOM_FLAGS:()}; unset "CUSTOM_FLAGS[0]"
 
 
 IS_LXCFS_ENABLED=$([[ -d "/var/lib/lxcfs" ]] && echo "1" || echo "0")
@@ -187,10 +188,11 @@ _nvidia_cuda_init(){
 }
 
 do_start() {
- local ver=$1
- local clean=$2
- local attach=$3
- local interactive=$4
+ local -n flags=$1
+ local ver=${FLAGS[VER]}
+ local clean=${FLAGS[CLEAN]}
+ local attach=${FLAGS[ATTACH]}
+ local interactive=${FLAGS[INTERACTIVE]}
  local volumes=""
  local envi=""
  local lxcfs_mounts=""
@@ -301,7 +303,8 @@ do_start() {
 }
 
 do_stop() {
-  local clean=$1
+  local -n flags=$1
+  local clean=${flags[CLEAN]}
   __command "[I] Stopping container ..." 1 ${CONTAINER_BIN} stop -t 10 "${APPLICATION}"
   [[ ${clean} -eq 1 ]] && __command "[!] Removing container..." 1 ${CONTAINER_BIN} rm "${APPLICATION}"
 }
@@ -319,8 +322,9 @@ do_ssh() {
 }
 
 do_build() {
-  local ver=$1
-  local _clean_flag=$2
+  local -n flags=$1
+  local ver=${flags[VER]}
+  local _clean_flag=${flags[CLEAN]}
   local _build_args=""
 
   if [[ ${_clean_flag} -eq 1 ]]; then
@@ -498,77 +502,71 @@ upgrade_lib(){
 }
 
 show_help(){
- echo "Help is here...soon"
+  local -n commands=$1
+  local -n flags=$2
+
+  echo -e "\n${APPLICATION} v${VER} [wrapper v${LIB_VERSION}] help"
+  echo -e "===============================================\n"
+
+  echo "Available commands:"
+  for c in ${!commands[*]}; do
+    [[ "${c##*,}" == "F" ]] && continue
+    echo "  - ${c%,*}"
+  done
+
+  echo -e "\nAvailable arguments:"
+  for c in ${!flags[*]}; do
+    [[ "${c:0:1}" == "-" ]] && continue
+    echo "  - ${c}"
+  done
+
 }
 
 #=============================================
 declare -A COMMANDS=(
- [INIT]=0
- [BUILD]=0
- [START]=0
- [STOP]=0
- [LOGS]=0
- [SSH]=0
- [UPDATE]=0
+ [INIT,S]=0   [INIT,F]="do_init"
+ [BUILD,S]=0  [BUILD,F]="do_build"
+ [START,S]=0  [START,F]="do_start"
+ [STOP,S]=0   [STOP,F]="do_stop"
+ [LOGS,S]=0   [LOGS,F]="do_logs"
+ [SSH,S]=0    [SSH,F]="do_ssh"
+ [UPDATE,S]=0 [UPDATE,F]="upgrade_lib"
 )
 
 declare -A FLAGS=(
- [CLEAN]=0
- [ATTACH]=0
- [INTERACTIVE]=0
+ [CLEAN]=0       [-C]=CLEAN         [--CLEAN]=CLEAN
+ [ATTACH]=0      [-A]=ATTACH        [--ATTACH]=ATTACH
+ [INTERACTIVE]=0 [-IT]=INTERACTIVE  [--INTERACTIVE]=INTERACTIVE
+ [VER]=${VER} 
 )
 
+# Disallow internal commands override
 for key in ${!CUSTOM_COMMANDS[*]}; do
- COMMANDS[${key}]=0
+  [[ ! ${COMMANDS[${key},F]+_} ]] && { COMMANDS[${key},S]=0; COMMANDS[${key},F]=${CUSTOM_COMMANDS[${key}]}; }
 done
 
+for key in ${!CUSTOM_FLAGS[*]}; do
+  [[ ! ${FLAGS[${key^^}]+_} ]] && FLAGS[${key^^}]=${CUSTOM_FLAGS[${key^^}]}
+done
 
 for i in "${@}"; do
-  if [[ ${COMMANDS[${i^^}]+_} ]]; then
-   COMMANDS[${i^^}]=1
-   shift
+  if [[ ${COMMANDS[${i^^},S]+_} ]]; then
+   COMMANDS[${i^^},S]=1
+  elif [[ ${FLAGS[${i^^}]+_} ]]; then 
+    FLAGS[${FLAGS[${i^^}]}]=1
   else case ${i,,} in
-  -c|--clean)
-    FLAGS[CLEAN]=1
-    shift;;
-  -a|--attach)
-    FLAGS[ATTACH]=1
-    shift;;
-  -it|--interactive)
-    FLAGS[INTERACTIVE]=1
-    shift;;
   -v=*|--ver=*)
-    VER="${i#*=}"
-    shift;;
+    FLAGS[VER]="${i#*=}";;
   help|-h|--help)
-    show_help
+    show_help COMMANDS FLAGS
     exit 0;;
  esac fi
+ shift
 done
 
-if [[ ${COMMANDS[UPDATE]} -eq 1 ]]; then
-  upgrade_lib
-elif [[ ${COMMANDS[INIT]} -eq 1 ]]; then
-  do_init
-elif [[ ${COMMANDS[START]} -eq 1 ]]; then
-  do_start "${VER}" "${FLAGS[CLEAN]}" "${FLAGS[ATTACH]}" "${FLAGS[INTERACTIVE]}"
-elif [[ ${COMMANDS[STOP]} -eq 1 ]]; then
-  do_stop "${FLAGS[CLEAN]}"
-elif [[ ${COMMANDS[BUILD]} -eq 1 ]]; then
-  do_build "${VER}" "${FLAGS[CLEAN]}"
-elif [[ ${COMMANDS[LOGS]} -eq 1 ]]; then
-  do_logs
-elif [[ ${COMMANDS[SSH]} -eq 1 ]]; then 
-  do_ssh
-else
-  for key in ${!CUSTOM_COMMANDS[*]}; do
-   if [[ ${COMMANDS[${key}]} -eq 1 ]]; then
-     ${CUSTOM_COMMANDS[${key}]} FLAGS
-     exit $?
-   fi
-  done
+for i in ${!COMMANDS[*]}; do 
+  [[ "${i##*,}" == "F" ]] && continue
+  [[ ${COMMANDS[${i%,*},S]} -eq 1 ]] && { ${COMMANDS[${i%,*},F]} FLAGS; exit $?; }
+done
 
-  show_help
-fi
-
-exit $?
+show_help COMMANDS FLAGS
