@@ -62,48 +62,49 @@ LXC_FS_OPTS=(
 CONTAINER_BIN="podman"
 
 
-__command(){
-  local _c_tag="\033[38;05;39m"
-  local _c_cmd="\033[38;05;245m"
-  local _c_ok="\033[38;05;40m"
-  local _c_fail="\033[38;05;161m"
+declare -A _COLOR=(
+  [INFO]="\033[38;05;39m"
+  [ERROR]="\033[38;05;161m"
+  [WARN]="\033[38;05;178m"
+  [OK]="\033[38;05;40m"
+  [GRAY]="\033[38;05;245m"
+  [RESET]="\033[m"
+)
 
+
+__command(){
   local title="$1"
-  local silent="$2"  # 0 or 1
+  local status="$2"  # 0 or 1
   shift;shift
 
-  [[ "${__DEBUG}" -eq 1 ]] && echo "Command: $*"
+  [[ "${__DEBUG}" -eq 1 ]] && echo "${_COLOR[INFO]}[CMD-DBG] ${_COLOR[GRAY]} $* ${_COLOR[RESET]}"
 
-  echo -n "${title}..."
-
-  if [[ ${silent} -eq 1 ]]; then
+  if [[ ${status} -eq 1 ]]; then
+    echo -n "${title}..."
     "$@" 1>/dev/null 2>&1
     local n=$?
-    [[ $n -eq 0 ]] && echo -e "${_c_ok}ok\033[m" || echo -e "${_c_fail}fail[#${n}]\033[m"
+    [[ $n -eq 0 ]] && echo -e "${_COLOR[OK]}ok${_COLOR[RESET]}" || echo -e "${_COLOR[ERROR]}fail[#${n}]${_COLOR[RESET]}"
     return ${n}
   else
+   echo "${title}..."
     "$@"
     return $?
   fi
 }
 
 __run(){
- local _c_tag="\033[38;05;39m"
- local _c_cmd="\033[38;05;245m"
- local _c_ok="\033[38;05;40m"
- local _c_fail="\033[38;05;161m"
-
- echo -ne "${_c_tag}[EXEC] ${_c_cmd}$* -> ["
+ echo -ne "${_COLOR[INFO]}[EXEC] ${_COLOR[GRAY]}$* -> ["
  "$@" 1>/dev/null 2>/dev/null
  local n=$?
- [[ $n -eq 0 ]] && echo -ne "${_c_ok}ok" || echo -ne "${_c_fail}fail[#${n}]"
- echo -e "${_c_cmd}]\033[m"
+ [[ $n -eq 0 ]] && echo -e "${_COLOR[OK]}ok${_COLOR[GRAY]}]${_COLOR[RESET]}" || echo -e "${_COLOR[ERROR]}fail[#${n}]${_COLOR[GRAY]}]${_COLOR[RESET]}"
  return ${n}
 }
 
 __echo() {
- local _c_tag="\033[38;05;39m"
- echo -e "${_c_tag}[INFO] $*"
+ local _lvl="INFO"
+ [[ "${1^^}" == "INFO" ]] || [[ "${1^^}" == "ERROR" ]] || [[ "${1^^}" == "WARN" ]] && { local _lvl=${1^^}; shift; }
+ 
+ echo -e "${_COLOR[${_lvl}]}[${_lvl}]${_COLOR[RESET]} $*"
 }
 
 
@@ -115,12 +116,12 @@ verify_requested_resources(){
 
   if [[ "${LIMITS[MEMORY]%.*}" -gt "${total_system_memory%.*}" ]]; then
     local is_error=1
-    echo "[ERROR] Available system memory: ${total_system_memory%.*} GB, but requested ${LIMITS[MEMORY]%.*} GB"
+    __echo error "Available system memory: ${total_system_memory%.*} GB, but requested ${LIMITS[MEMORY]%.*} GB"
   fi
 
   if [[ "${LIMITS[CPU]%.*}" -gt "${system_cpu_cores%.*}" ]]; then 
     local is_error=1
-    echo "[ERROR] Available system cpu cores: ${system_cpu_cores}, but requested ${LIMITS[CPU]}"
+    __echo error "Available system cpu cores: ${system_cpu_cores}, but requested ${LIMITS[CPU]}"
   fi
 
   [[ ${is_error} -eq 1 ]] && exit 1
@@ -158,8 +159,6 @@ _nvidia_cuda_init(){
   # https://askubuntu.com/questions/590319/how-do-i-enable-automatically-nvidia-uvm
   # https://docs.nvidia.com/cuda/cuda-installation-guide-linux/index.html#runfile-verifications
 
-  echo -n "[i] Initializing CUDA ... "
-
   if /sbin/modprobe nvidia; then
     # Count the number of NVIDIA controllers found.
     NVDEVS=$(lspci | grep -i NVIDIA)
@@ -173,7 +172,6 @@ _nvidia_cuda_init(){
 
     mknod -m 666 /dev/nvidiactl c 195 255 1>/dev/null 2>&1
   else
-    echo "fail"
     return 1
   fi
 
@@ -183,10 +181,9 @@ _nvidia_cuda_init(){
 
     mknod -m 666 /dev/nvidia-uvm c "${D}" 0 1>/dev/null 2>&1
   else
-    echo "fail"
     return 1
   fi
-  echo "ok"
+  return 0
 }
 
 do_start() {
@@ -204,7 +201,7 @@ do_start() {
 
  [[ ${clean} -eq 1 ]] && [[ ${attach} -eq 1 ]] && { echo "[E] -c and -a options cannot be used together!"; return; }
 
- [[ ATTACH_NVIDIA -eq 1 ]] && { _nvidia_cuda_init; local nvidia_args=$(_add_nvidia_mounts); echo "[i] Attaching NVIDIA stuff to container..."; } || echo -n
+ [[ ATTACH_NVIDIA -eq 1 ]] && { __command "[i] Initializing CUDA" 1 _nvidia_cuda_init; local nvidia_args=$(_add_nvidia_mounts); echo "[i] Attaching NVIDIA stuff to container..."; } || echo -n
 
  verify_requested_resources
  if [[ ${LIMITS[CPU]%.*} -ne 0 ]]; then 
@@ -311,6 +308,14 @@ do_stop() {
 
 do_logs() {
  ${CONTAINER_BIN} logs "${APPLICATION}"
+}
+
+do_ssh() {
+  ${CONTAINER_BIN} exec -it "${APPLICATION}" bash 2>/dev/null
+
+  if [[ $? -ne 0 ]]; then
+    ${CONTAINER_BIN} exec -it "${APPLICATION}" sh 
+  fi
 }
 
 do_build() {
@@ -503,6 +508,7 @@ declare -A COMMANDS=(
  [START]=0
  [STOP]=0
  [LOGS]=0
+ [SSH]=0
  [UPDATE]=0
 )
 
@@ -552,6 +558,8 @@ elif [[ ${COMMANDS[BUILD]} -eq 1 ]]; then
   do_build "${VER}" "${FLAGS[CLEAN]}"
 elif [[ ${COMMANDS[LOGS]} -eq 1 ]]; then
   do_logs
+elif [[ ${COMMANDS[SSH]} -eq 1 ]]; then 
+  do_ssh
 else
   for key in ${!CUSTOM_COMMANDS[*]}; do
    if [[ ${COMMANDS[${key}]} -eq 1 ]]; then
