@@ -503,7 +503,7 @@ declare -A COMMANDS=(
  [STOP]=0
  [RELOAD]=0
  [LOGS]=0
- [DOWNLOAD]=0
+ [UPDATE]=0
 )
 
 declare -A FLAGS=(
@@ -536,7 +536,7 @@ for i in "${@}"; do
  esac fi
 done
 
-if [[ ${COMMANDS[DOWNLOAD]} -eq 1 ]]; then
+if [[ ${COMMANDS[UPDATE]} -eq 1 ]]; then
   upgrade_lib
 elif [[ ${COMMANDS[INIT]} -eq 1 ]]; then
   do_init
