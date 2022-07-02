@@ -28,41 +28,6 @@ __dir(){
 
 DIR=$(__dir)
 
-
-. "${DIR}/.config"
-
-
-APPLICATION=${APPLICATION:-}
-VER=${VER:-}
-VOLUMES=${VOLUMES:-}           
-ENVIRONMENT=${ENVIRONMENT:-}   
-CMD=${CMD:-}                   
-IP=${IP:-}
-ATTACH_NVIDIA=${ATTACH_NVIDIA:-0}
-CONTAINER_CAPS=${CONTAINER_CAPS:-}
-CAPS_PRIVILEGED=${CAPS_PRIVILEGED:0}
-BUILD_ARGS=${BUILD_ARGS:-}
-
-NS_USER=${NS_USER:-containers}
-declare -A LIMITS=${LIMITS:([CPU]="0.0" [MEMORY]=0)}
-declare -A CUSTOM_COMMANDS=${CUSTOM_COMMANDS:()}; unset "CUSTOM_COMMANDS[0]"
-declare -A CUSTOM_FLAGS=${CUSTOM_FLAGS:()}; unset "CUSTOM_FLAGS[0]"
-
-
-IS_LXCFS_ENABLED=$([[ -d "/var/lib/lxcfs" ]] && echo "1" || echo "0")
-# options required if LXCFS is installed
-LXC_FS_OPTS=(
-  "-v" "/var/lib/lxcfs/proc/cpuinfo:/proc/cpuinfo:rw"
-  "-v" "/var/lib/lxcfs/proc/diskstats:/proc/diskstats:rw"
-  "-v" "/var/lib/lxcfs/proc/meminfo:/proc/meminfo:rw"
-  "-v" "/var/lib/lxcfs/proc/stat:/proc/stat:rw"
-  "-v" "/var/lib/lxcfs/proc/swaps:/proc/swaps:rw"
-  "-v" "/var/lib/lxcfs/proc/uptime:/proc/uptime:rw"
-)
-
-CONTAINER_BIN="podman"
-
-
 declare -A _COLOR=(
   [INFO]="\033[38;05;39m"
   [ERROR]="\033[38;05;161m"
@@ -107,6 +72,41 @@ __echo() {
  
  echo -e "${_COLOR[${_lvl}]}[${_lvl}]${_COLOR[RESET]} $*"
 }
+
+# Include configuration files
+[[ -f "${DIR}/.secrets" ]] && { . "${DIR}/.secrets"; __echo "Including secrets..."; }
+. "${DIR}/.config"
+
+
+APPLICATION=${APPLICATION:-}
+VER=${VER:-}
+VOLUMES=${VOLUMES:-}           
+ENVIRONMENT=${ENVIRONMENT:-}   
+CMD=${CMD:-}                   
+IP=${IP:-}
+ATTACH_NVIDIA=${ATTACH_NVIDIA:-0}
+CONTAINER_CAPS=${CONTAINER_CAPS:-}
+CAPS_PRIVILEGED=${CAPS_PRIVILEGED:0}
+BUILD_ARGS=${BUILD_ARGS:-}
+
+NS_USER=${NS_USER:-containers}
+declare -A LIMITS=${LIMITS:([CPU]="0.0" [MEMORY]=0)}
+declare -A CUSTOM_COMMANDS=${CUSTOM_COMMANDS:()}; unset "CUSTOM_COMMANDS[0]"
+declare -A CUSTOM_FLAGS=${CUSTOM_FLAGS:()}; unset "CUSTOM_FLAGS[0]"
+
+
+IS_LXCFS_ENABLED=$([[ -d "/var/lib/lxcfs" ]] && echo "1" || echo "0")
+# options required if LXCFS is installed
+LXC_FS_OPTS=(
+  "-v" "/var/lib/lxcfs/proc/cpuinfo:/proc/cpuinfo:rw"
+  "-v" "/var/lib/lxcfs/proc/diskstats:/proc/diskstats:rw"
+  "-v" "/var/lib/lxcfs/proc/meminfo:/proc/meminfo:rw"
+  "-v" "/var/lib/lxcfs/proc/stat:/proc/stat:rw"
+  "-v" "/var/lib/lxcfs/proc/swaps:/proc/swaps:rw"
+  "-v" "/var/lib/lxcfs/proc/uptime:/proc/uptime:rw"
+)
+
+CONTAINER_BIN="podman"
 
 
 verify_requested_resources(){
@@ -478,7 +478,7 @@ __vercomp () {
 }
 
 upgrade_lib(){
-  local _remote_ver=$(curl https://raw.githubusercontent.com/hapylestat/native_container_app/master/version 2>/dev/null)
+  local _remote_ver=$(curl https://raw.githubusercontent.com/FluffyContainers/native_containers/master/version 2>/dev/null)
   
   if ! __vercomp "${LIB_VERSION}" "${_remote_ver}"; then
    echo "Current version ${LIB_VERSION} are installed, while ${_remote_ver} are available"
@@ -487,7 +487,7 @@ upgrade_lib(){
     echo "Upgrade cancelled by user"
     return
    fi
-   curl https://raw.githubusercontent.com/hapylestat/native_container_app/master/src/container.lib.sh -o "${DIR}/container.lib.sh" 2>/dev/null
+   curl https://raw.githubusercontent.com/FluffyContainers/native_containers/master/src/container.lib.sh -o "${DIR}/container.lib.sh" 2>/dev/null
    sed -i "s/LIB_VERSION=\"0.0.0\"/LIB_VERSION=\"${_remote_ver}\"/" "${DIR}/container.lib.sh"
 
   if [[ ! -f "${DIR}/.config" ]]; then
@@ -495,7 +495,7 @@ upgrade_lib(){
     curl https://raw.githubusercontent.com/hapylestat/native_container_app/master/src/.config -o "${DIR}/.config" 2>/dev/null
   fi
 
-   echo "Upgrade done, please referer to https://raw.githubusercontent.com/hapylestat/native_container_app/master/src/.config for new available conf options"
+   echo "Upgrade done, please referer to https://raw.githubusercontent.com/FluffyContainers/native_containers/master/src/.config for new available conf options"
   else 
     echo "Lib is up to date"
   fi
