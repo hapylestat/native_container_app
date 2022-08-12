@@ -496,6 +496,48 @@ __ask() {
     return 0
 }
 
+
+handle_file(){
+  IFS=" "
+  local _name=${1}
+  local _diff_line=${2}
+  local _command=${_diff_line:0:1}
+  local _file=${_diff_line:2}; local _file=${_file//..};local _file=${_file//\/}  # to avoid paths like ../../.something
+  local _lib_download_uri="https://raw.githubusercontent.com/FluffyContainers/native_containers/master"
+  local _lib_source_loc="src"
+
+  case ${_command} in 
+  -)
+   [[ ! -f "${DIR}/${_file}" ]] &&  __echo "INFO" "Skipping ${_file} removal as file doesn't exists"  || __run rm -f "${DIR}/${_file}";;
+  +)
+    local _http_code=$(curl -s "${_lib_download_uri}/${_lib_source_loc}/${_file}" -o "${DIR}/${_file}" --write-out "%{http_code}")
+    if [[ ${_http_code} -lt 200 ]] || [[ ${_http_code} -gt 299 ]]; then 
+      __echo "error" "Failed to download file \"${_file}\": HTTP ${_http_code}"
+    else 
+      __echo "info" "Downloaded \"${_file}\" ... OK"
+    fi
+    ;;
+  ?)
+    if [[ -f "${DIR}/${_file}" ]] && [[ "${_file}" != "example.sh" ]]; then
+      __echo "info" "Skipping download of optional \"${_file}\", as file already exists"
+      return
+    else  
+      local _http_code=$(curl -s "${_lib_download_uri}/${_lib_source_loc}/${_file}" -o "${DIR}/${_file}" --write-out "%{http_code}")
+      [[ ${_http_code} -lt 200 ]] || [[ ${_http_code} -gt 299 ]] && __echo "error" "Failed to download file \"${_file}\": HTTP ${_http_code}" || {
+         [[ "${_file}" == "example.sh" ]] && {
+          __run rm -f "${DIR}/${_name}.sh"
+          __run mv "${DIR}/${_file}" "${DIR}/${_name}.sh"
+          __run chmod +x "${DIR}/${_name}.sh" 
+         }
+        __echo "info" "Downloaded \"${_file}\" ... OK"
+      }
+    fi
+    ;;
+  *)
+    __echo "ERROR" "Unknown instruction \"${_command}\"";;
+  esac
+}
+
 __do_lib_upgrade() {
     local _lib_download_uri="https://raw.githubusercontent.com/FluffyContainers/native_containers/master"
     local _lib_source_loc="src"
