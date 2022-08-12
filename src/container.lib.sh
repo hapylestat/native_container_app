@@ -477,28 +477,48 @@ __vercomp () {
     return 0
 }
 
+declare -A _COLOR=(
+  [INFO]="\033[38;05;39m"
+  [ERROR]="\033[38;05;161m"
+  [WARN]="\033[38;05;178m"
+  [OK]="\033[38;05;40m"
+  [GRAY]="\033[38;05;245m"
+  [RESET]="\033[m"
+)
+
+__do_lib_upgrade() {
+    local _lib_download_uri="https://raw.githubusercontent.com/FluffyContainers/native_containers/master"
+    local _lib_source_loc="src"
+    local _remote_ver=""
+    
+    echo -en "You're about to use remote lib source \"${_COLOR[ERROR]}${_lib_download_uri}${_COLOR[RESET]}\". "
+    ! __ask "Agree to continue" && return 1
+
+    local _remote_ver=$(curl "${_lib_download_uri}/version" 2>/dev/null)
+    [[ -z ${_remote_ver} ]] && { __echo "error" "Can't retrieve remote version"; exit 1; }
+    if ! __vercomp "${LIB_VERSION}" "${_remote_ver}"; then
+        echo "Current version ${LIB_VERSION} are installed, while ${_remote_ver} are available ..."
+        ! curl --output /dev/null --silent --head --fail "${_lib_download_uri}/download.diff" && { __echo "error" "Lib update list is not available at \"${_lib_download_uri}/download.diff\""; exit 1; }        
+
+        local oldIFS="${IFS}"
+        IFS=$'\n'; for line in $(curl -s ${_lib_download_uri}/download.diff); do 
+            [[ "${line:0:1}" == "#" ]] && continue
+            handle_file "${APP_NAME}" "${line}"
+        done
+        IFS=${oldIFS}
+        if [[ -f "${DIR}/.container.lib.sh" ]]; then
+            sed -i "s/LIB_VERSION=\"0.0.0\"/LIB_VERSION=\"${_remote_ver}\"/" "${DIR}/.container.lib.sh"
+        fi
+
+        __echo "Upgrade done, please referer to ${_lib_download_uri}/src/.config for new available conf options"
+    else 
+        __echo "Lib is already up to date"
+    fi
+}
+
+
 upgrade_lib(){
-  local _remote_ver=$(curl https://raw.githubusercontent.com/FluffyContainers/native_containers/master/version 2>/dev/null)
-  
-  if ! __vercomp "${LIB_VERSION}" "${_remote_ver}"; then
-   echo "Current version ${LIB_VERSION} are installed, while ${_remote_ver} are available"
-   read -rep "Confirm upgrade (y/N): " answer
-   if [[ "${answer}" != "y" ]]; then
-    echo "Upgrade cancelled by user"
-    return
-   fi
-   curl https://raw.githubusercontent.com/FluffyContainers/native_containers/master/src/container.lib.sh -o "${DIR}/container.lib.sh" 2>/dev/null
-   sed -i "s/LIB_VERSION=\"0.0.0\"/LIB_VERSION=\"${_remote_ver}\"/" "${DIR}/container.lib.sh"
-
-  if [[ ! -f "${DIR}/.config" ]]; then
-    echo "Downloading default configuration file"
-    curl https://raw.githubusercontent.com/hapylestat/native_container_app/master/src/.config -o "${DIR}/.config" 2>/dev/null
-  fi
-
-   echo "Upgrade done, please referer to https://raw.githubusercontent.com/FluffyContainers/native_containers/master/src/.config for new available conf options"
-  else 
-    echo "Lib is up to date"
-  fi
+  __do_lib_upgrade
 }
 
 show_help(){
