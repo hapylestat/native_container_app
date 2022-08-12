@@ -486,6 +486,16 @@ declare -A _COLOR=(
   [RESET]="\033[m"
 )
 
+__ask() {
+    local _title="${1}"
+    read -rep "${1} (y/N): " answer < /dev/tty
+    if [[ "${answer}" != "y" ]]; then
+      __echo "error" "Action cancelled by the user"
+      return 1
+    fi
+    return 0
+}
+
 __do_lib_upgrade() {
     local _lib_download_uri="https://raw.githubusercontent.com/FluffyContainers/native_containers/master"
     local _lib_source_loc="src"
