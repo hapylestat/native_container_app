@@ -26,6 +26,7 @@ __dir(){
  echo -n $(cd -P "$( dirname "$SOURCE" )" >/dev/null 2>&1 && pwd)
 }
 
+APP_NAME=${BASH_SOURCE[1]}; APP_NAME=${APP_NAME##*/}; APP_NAME=${APP_NAME%.*}
 DIR=$(__dir)
 
 declare -A _COLOR=(
